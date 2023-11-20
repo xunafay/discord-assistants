@@ -1,0 +1,15 @@
+{
+  "name": "mention",
+  "description": "Returns the format to use to mention a user in chat",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  }
+}

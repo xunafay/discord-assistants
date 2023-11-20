@@ -1,0 +1,15 @@
+{
+    "name": "user_info",
+    "description": "Returns the user info like name, ...",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  }

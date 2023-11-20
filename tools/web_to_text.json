@@ -1,0 +1,16 @@
+{
+    "name": "web_to_text",
+    "description": "Convert website to text",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "The url to convert"
+            }
+        },
+        "required": [
+            "url"
+        ]
+    }
+}

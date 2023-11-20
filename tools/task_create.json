@@ -1,0 +1,33 @@
+{
+    "name": "task_create",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "description": "User name/id for which to create the task"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the task"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the task, omit if not sure"
+        },
+        "due_date": {
+          "type": "string",
+          "description": "Due date of the task, omit this if you don't know"
+        },
+        "estimated_time": {
+          "type": "string",
+          "description": "Estimated time of the task"
+        }
+      },
+      "required": [
+        "user_id",
+        "title"
+      ]
+    },
+    "description": "Create a task"
+  }

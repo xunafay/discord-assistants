@@ -1,0 +1,14 @@
+{
+    "name": "task_list",
+    "description": "Create a task",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "user_id": {
+                "type": "string",
+                "description": "User name/id for which to get the tasks"
+            }
+        },
+        "required": ["user_id"]
+    }
+}
