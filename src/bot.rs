@@ -16,7 +16,8 @@ use std::env;
 use std::sync::Arc;
 
 use crate::database::users::{User, UserStore};
-use crate::openai::{Assistant, AssistantStore, OpenAI, OpenAIThread, ThreadStore};
+use crate::openai::{Assistant, AssistantStore, OpenAI, ThreadStore};
+use crate::thread::OpenAIThread;
 
 struct Handler;
 
@@ -208,9 +209,7 @@ impl EventHandler for Handler {
         let read_lock = ctx.data.read().await;
         let openai = read_lock
             .get::<OpenAI>()
-            .expect("Expected OpenAI in TypeMap")
-            .read()
-            .await;
+            .expect("Expected OpenAI in TypeMap");
         let assistants = read_lock
             .get::<AssistantStore>()
             .expect("Expected AssistantStore in TypeMap")
@@ -320,7 +319,7 @@ async fn stt(ctx: &Context, msg: &Message) -> CommandResult {
 }
 
 impl TypeMapKey for OpenAI {
-    type Value = Arc<RwLock<OpenAI>>;
+    type Value = OpenAI;
 }
 
 impl TypeMapKey for ThreadStore {
@@ -351,7 +350,7 @@ impl Bot {
 
         {
             let mut data = client.data.write().await;
-            data.insert::<OpenAI>(Arc::new(RwLock::new(OpenAI::new())));
+            data.insert::<OpenAI>(OpenAI::new());
             data.insert::<ThreadStore>(Arc::new(Mutex::new(ThreadStore::new())));
             data.insert::<AssistantStore>(Arc::new(RwLock::new(AssistantStore::new())));
             data.insert::<UserStore>(Arc::new(RwLock::new(UserStore::new())));

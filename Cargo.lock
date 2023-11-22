@@ -296,6 +296,7 @@ name = "cognicompany"
 version = "0.1.0"
 dependencies = [
  "async-openai",
+ "async-trait",
  "base64 0.21.5",
  "chrono",
  "dotenv",
@@ -314,6 +315,7 @@ dependencies = [
  "sled",
  "songbird",
  "tokio",
+ "typemap_rev",
 ]
 
 [[package]]

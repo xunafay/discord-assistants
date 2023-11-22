@@ -24,3 +24,5 @@ sled = "0.34.7"
 serenity-voice-model = "0.1.1"
 base64 = "0.21.5"
 minio = { git = "https://github.com/interval-org/minio-rs.git", ref = "28794ece06254c52bf8a5527feaece8f6589ddbd"}
+typemap_rev = "0.3.0"
+async-trait = "0.1.74"

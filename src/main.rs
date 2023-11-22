@@ -1,12 +1,13 @@
 mod bot;
-mod openai;
 mod commands;
-mod tools;
 mod database;
+mod openai;
+mod thread;
+mod tools;
 
 use bot::Bot;
 use std::env;
-use tokio;
+use tokio::{self};
 
 #[tokio::main]
 async fn main() {

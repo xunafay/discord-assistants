@@ -18,7 +18,6 @@ async fn generate_voice(
 ) -> Result<CreateSpeechResponse, String> {
     let data = ctx.data.read().await;
     let openai = data.get::<OpenAI>().expect("Expected OpenAI in TypeMap");
-    let openai = openai.read().await;
     let voice = openai.tts(&prompt, voice, quality).await;
 
     match voice {

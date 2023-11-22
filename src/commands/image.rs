@@ -18,7 +18,6 @@ async fn generate_image(
 ) -> Result<ImagesResponse, OpenAIError> {
     let data = ctx.data.read().await;
     let openai = data.get::<OpenAI>().expect("Expected OpenAI in TypeMap");
-    let openai = openai.read().await;
     openai.generate_image(&prompt, model, quality, style).await
 }
 

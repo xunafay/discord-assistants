@@ -5,21 +5,17 @@ use async_openai::{
         ImageQuality, ImageStyle, RunToolCallObject, SubmitToolOutputsRunRequest, ToolsOutputs,
     },
 };
-use log::{error, debug};
+use log::{debug, error};
 use serde_json::json;
+use serenity::client::Context;
 
-use crate::{openai::{ImageToolArguments, OpenAI}, database::image::Minio};
+use crate::{database::blob::Minio, openai::OpenAI, thread::ImageToolArguments};
 
 use super::AlvariumTool;
 
 pub struct ImageTool;
-impl ImageTool {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
 impl AlvariumTool for ImageTool {
+    type Arguments = ImageToolArguments;
     fn definition() -> AssistantTools {
         AssistantTools::Function(AssistantToolsFunction {
             r#type: "function".to_string(),
@@ -66,19 +62,15 @@ impl AlvariumTool for ImageTool {
         })
     }
 
-    fn name(&self) -> String {
+    fn name() -> String {
         "image".to_owned()
     }
 
     async fn run(
-        &mut self,
-        args: String,
-        openai: &OpenAI,
+        args: Self::Arguments,
+        context: &Context,
         tool: &RunToolCallObject,
     ) -> SubmitToolOutputsRunRequest {
-        let args: ImageToolArguments =
-            serde_json::from_str(&args).expect("Failed to deserialize arguments");
-
         let model = match args.model {
             Some(text) => match text.as_str() {
                 "dall-e-3" => ImageModel::DallE3,
@@ -108,9 +100,13 @@ impl AlvariumTool for ImageTool {
 
         debug!("calling generate image with options: prompt: {:?}, model: {:?}, quality: {:?}, style: {:?}", args.prompt, model, quality, style);
 
-        let images = openai
-            .generate_image(&args.prompt, Some(model), quality, style)
-            .await;
+        let images = {
+            let data = context.data.read().await;
+            let openai = data.get::<OpenAI>().expect("Expected OpenAI in TypeMap");
+            openai
+                .generate_image(&args.prompt, Some(model), quality, style)
+                .await
+        };
 
         let images = images
             .expect("Failed to generate image")
@@ -120,20 +116,22 @@ impl AlvariumTool for ImageTool {
         match images {
             Ok(images) => {
                 let mut image_urls: Vec<String> = vec![];
-                let minio = Minio::new().await;
+                let minio = Minio::new();
                 for image in images {
                     let res = minio
                         .upload_image(image.to_str().unwrap())
                         .await
                         .expect("Failed to upload image");
                     image_urls.push(res);
-                    tokio::fs::remove_file(image).await.expect("Failed to remove image");
+                    tokio::fs::remove_file(image)
+                        .await
+                        .expect("Failed to remove image");
                 }
 
                 SubmitToolOutputsRunRequest {
                     tool_outputs: vec![ToolsOutputs {
                         tool_call_id: Some(tool.id.clone()),
-                        output: Some(image_urls.join("\n")),
+                        output: Some(json!({"urls": image_urls}).to_string()),
                     }],
                 }
             }
@@ -147,7 +145,7 @@ impl AlvariumTool for ImageTool {
                 SubmitToolOutputsRunRequest {
                     tool_outputs: vec![ToolsOutputs {
                         tool_call_id: Some(tool.id.clone()),
-                        output: Some(message),
+                        output: Some(json!({"error": message}).to_string()),
                     }],
                 }
             }

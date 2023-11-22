@@ -1,3 +1,3 @@
 pub mod tasks;
 pub mod users;
-pub mod image;
+pub mod blob;
