@@ -1,17 +1,18 @@
 use async_openai::types::MessageContent;
-use log::debug;
+use log::{debug, info};
 use regex::Regex;
 use serenity::all::{Command, Interaction};
 use serenity::async_trait;
 use serenity::builder::{CreateAttachment, CreateMessage, ExecuteWebhook};
 use serenity::framework::standard::{
     macros::{command, group},
-    CommandResult, StandardFramework,
+    CommandResult,
 };
 use serenity::model::webhook::Webhook;
 use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
 use songbird::SerenityInit;
+use std::env;
 use std::sync::Arc;
 
 use crate::database::users::{User, UserStore};
@@ -195,6 +196,10 @@ impl EventHandler for Handler {
             if command.data.name.as_str() == "voice" {
                 crate::commands::join_voice::run(&ctx, &command).await;
             };
+
+            if command.data.name.as_str() == "assistant" {
+                crate::commands::assistant::run(&ctx, &command).await;
+            };
         }
     }
 
@@ -232,28 +237,14 @@ impl EventHandler for Handler {
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
-        // delete_global_commands(&ctx).await;
-
-        Command::create_global_command(&ctx.http, crate::commands::image::register())
-            .await
-            .expect("Failed to create global command");
-
-        Command::create_global_command(&ctx.http, crate::commands::tts::register())
-            .await
-            .expect("Failed to create global command");
-
-        Command::create_global_command(&ctx.http, crate::commands::register::register())
-            .await
-            .expect("Failed to create global command");
-
-        Command::create_global_command(&ctx.http, crate::commands::join_voice::register())
-            .await
-            .expect("Failed to create global command");
+        info!("{} is connected!", ready.user.name);
+        if env::var("DELETE_COMMANDS").is_ok_and(|v| v == "true") {
+            recreate_commands(&ctx).await;
+        };
     }
 }
 
-async fn delete_global_commands(ctx: &Context) {
+async fn recreate_commands(ctx: &Context) {
     let commands = Command::get_global_commands(&ctx.http)
         .await
         .expect("Failed to get global commands");
@@ -263,6 +254,26 @@ async fn delete_global_commands(ctx: &Context) {
             .expect("Failed to delete global command");
         debug!("Deleted global command {:?}", command);
     }
+
+    Command::create_global_command(&ctx.http, crate::commands::image::register())
+        .await
+        .expect("Failed to create global command");
+
+    Command::create_global_command(&ctx.http, crate::commands::tts::register())
+        .await
+        .expect("Failed to create global command");
+
+    Command::create_global_command(&ctx.http, crate::commands::register::register())
+        .await
+        .expect("Failed to create global command");
+
+    Command::create_global_command(&ctx.http, crate::commands::join_voice::register())
+        .await
+        .expect("Failed to create global command");
+
+    Command::create_global_command(&ctx.http, crate::commands::assistant::register())
+        .await
+        .expect("Failed to create global command");
 }
 
 #[group]
@@ -352,7 +363,7 @@ impl Bot {
     }
 }
 
-trait SplitToVector {
+pub trait SplitToVector {
     fn split_to_vector(&self, length: usize) -> Vec<String>;
 }
 

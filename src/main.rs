@@ -11,7 +11,7 @@ use tokio;
 #[tokio::main]
 async fn main() {
     pretty_env_logger::formatted_builder()
-        .filter_module("lovelace", log::LevelFilter::Debug)
+        .filter_module("cognicompany", log::LevelFilter::Debug)
         .init();
 
     // Load the Discord token from the environment variables

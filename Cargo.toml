@@ -1,5 +1,5 @@
 [package]
-name = "discord-assistants"
+name = "cognicompany"
 version = "0.1.0"
 authors = ["Hannah Witvrouwen <hannah@hexodine.com>"]
 edition = "2018"
@@ -22,3 +22,5 @@ html2text = "0.6.0"
 reqwest = { version = "0.11.22", features = ["blocking"] }
 sled = "0.34.7"
 serenity-voice-model = "0.1.1"
+base64 = "0.21.5"
+minio = { git = "https://github.com/interval-org/minio-rs.git", ref = "28794ece06254c52bf8a5527feaece8f6589ddbd"}

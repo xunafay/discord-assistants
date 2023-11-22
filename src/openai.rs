@@ -24,7 +24,7 @@ use crate::{
         complete_task, create_task, get_tasks, CompleteTaskToolArgumetens, CreateTaskToolArguments,
         ListTaskToolArguments,
     },
-    tools::{image::image_tool, transcribe::transcribe_tool, tts::tts_tool},
+    tools::{transcribe::transcribe_tool, tts::tts_tool, image::ImageTool, AlvariumTool},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -275,7 +275,7 @@ impl OpenAIThread {
                             self.reply_tool_output(&run.id, output).await;
                         }
                         "image" => {
-                            let output = image_tool(args, openai, tool).await;
+                            let output = ImageTool::new().run(args, openai, tool).await;
                             self.reply_tool_output(&run.id, output).await;
                         }
                         "current_date_time" => {
@@ -464,7 +464,7 @@ impl ThreadStore {
 
 #[derive(Clone)]
 pub struct OpenAI {
-    client: Client<OpenAIConfig>,
+    pub client: Client<OpenAIConfig>,
 }
 
 impl OpenAI {
@@ -487,7 +487,7 @@ impl OpenAI {
             .prompt(prompt)
             .n(1)
             .style(style)
-            .response_format(ResponseFormat::Url)
+            .response_format(ResponseFormat::B64Json)
             .quality(quality)
             .size(ImageSize::S1024x1024)
             .user("async-openai")

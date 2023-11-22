@@ -19,6 +19,7 @@ Other supported features:
 This project is under active development, as such there are still a lot of hardcoded values within the codebase.
 To run the project, the following steps are required:
 
+- **Minio Setup**: The project requires a Minio instance to be running. Set the Minio endpoint, access key and secret key with the environment variables S3_URL, S3_KEY and S3_SECRET respectively.
 - **Replace the Assistant ID**: Due the hardcoded values in the project, the quickest way to get the project up and running involves replacing the `asst_id` in the function `default_response` located in `src/bot.rs`.
 - **Set Environment Variables**: Ensure that the environment variables OPENAI_API_KEY and DISCORD_TOKEN are set.
 - **Discord Bot Permissions**: The Discord bot requires the message content intent.
