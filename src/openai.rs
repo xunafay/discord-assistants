@@ -2,15 +2,19 @@ use async_openai::{
     config::OpenAIConfig,
     error::OpenAIError,
     types::{
-        CreateImageRequestArgs, CreateSpeechRequestArgs, CreateSpeechResponse,
-        CreateTranscriptionRequestArgs, CreateTranscriptionResponse, ImageModel, ImageQuality,
-        ImageSize, ImageStyle, ImagesResponse, ResponseFormat, SpeechModel, Voice, AssistantObject,
+        AssistantObject, AssistantTools, CreateImageRequestArgs, CreateSpeechRequestArgs,
+        CreateSpeechResponse, CreateTranscriptionRequestArgs, CreateTranscriptionResponse,
+        ImageModel, ImageQuality, ImageSize, ImageStyle, ImagesResponse, ModifyAssistantRequest,
+        ResponseFormat, SpeechModel, Voice,
     },
     Client,
 };
 use log::{debug, error};
+use serde_json::json;
+use serenity::client::Context;
 use std::{
     collections::HashMap,
+    fmt,
     process::{Command, Stdio},
 };
 
@@ -25,56 +29,8 @@ pub struct Assistant {
     pub author_id: String,
 }
 
-pub struct AssistantStore {
-    channels: HashMap<u64, Vec<Assistant>>,
-}
-
-impl AssistantStore {
-    pub fn new() -> Self {
-        let mut map = HashMap::new();
-        map.insert(1089997843361693860, vec![
-            Assistant {
-                name: "lovelace".to_owned(),
-                webhook: "https://discord.com/api/webhooks/1176163600608530512/FQ8et-KbqLrokXzEOQbObtKK9WkQIyiYmprB3kk-MS2d9AHpddul9xmszLoJ0Rs4zvi-".to_owned(),
-                id: "asst_P66RVsW92Izpwky1qWDAZMO8".to_owned(),
-                voice: Voice::Nova,
-                author_id: "1176163600608530512".to_string()
-            },
-            Assistant {
-                name: "mosscap".to_owned(),
-                webhook: "https://discord.com/api/webhooks/1176163666345857034/YH4_E6AW7m1IZQ9sHDmBBiuFBpZJejMcSn9Po-cKnhjUWTdxTeX-WWoe4-jC0rAphwId".to_owned(),
-                id: "asst_12pff2aZ3RLAVAPpAnusFgwV".to_owned(),
-                voice: Voice::Onyx,
-                author_id: "1176163666345857034".to_string()
-            },
-        ]);
-
-        map.insert(1089999946859683911, vec![
-            Assistant {
-                name: "lovelace".to_owned(),
-                webhook: "https://discord.com/api/webhooks/1176166728057761862/WX11YPMn91Rp1ugwvpZYfCwh6Lh-izLc4aX7xs1SwRD--m_tDXyjnUGspw1EbdbonxJ4".to_owned(),
-                id: "asst_P66RVsW92Izpwky1qWDAZMO8".to_owned(),
-                voice: Voice::Nova,
-                author_id: "1176166728057761862".to_string()
-            },
-            Assistant {
-                name: "mosscap".to_owned(),
-                webhook: "https://discord.com/api/webhooks/1176166819246125066/5CtG8wcGrytSwtaKWbAOHV3uAvy1fgtgcMD9KY4bJW1aaDaQhVYL448YmJNRpXQR4F8s".to_owned(),
-                id: "asst_12pff2aZ3RLAVAPpAnusFgwV".to_owned(),
-                voice: Voice::Onyx,
-                author_id: "1176166819246125066".to_string()
-            },
-        ]);
-        AssistantStore { channels: map }
-    }
-
-    pub fn get_channel(&self, channel_id: &u64) -> Option<&Vec<Assistant>> {
-        self.channels.get(channel_id)
-    }
-}
-
 pub struct ThreadStore {
-    threads: HashMap<u64, OpenAIThread>,
+    threads: HashMap<String, OpenAIThread>,
 }
 
 impl ThreadStore {
@@ -84,14 +40,16 @@ impl ThreadStore {
         }
     }
 
-    pub async fn thread(&mut self, id: &u64) -> &OpenAIThread {
-        if self.threads.contains_key(&id) {
-            return self.threads.get(&id).unwrap();
-        } else {
-            let thread = OpenAIThread::new().await;
-            self.threads.insert(id.clone(), thread);
-            return self.threads.get(&id).unwrap();
-        }
+    pub fn get(
+        &mut self,
+        id: &str
+    ) -> Option<&OpenAIThread> {
+        self.threads.get(id)
+    }
+
+    pub fn add_thread(&mut self, thread: OpenAIThread) {
+        debug!("registring new thread in store");
+        self.threads.insert(thread.id().to_owned(), thread);
     }
 }
 
@@ -100,23 +58,91 @@ pub struct OpenAI {
     pub client: Client<OpenAIConfig>,
 }
 
+fn voice_to_string(voice: &Voice) -> String {
+    match voice {
+        Voice::Alloy => "alloy".to_owned(),
+        Voice::Echo => "echo".to_owned(),
+        Voice::Fable => "fable".to_owned(),
+        Voice::Nova => "nova".to_owned(),
+        Voice::Onyx => "onyx".to_owned(),
+        Voice::Shimmer => "shimmer".to_owned(),
+        _ => "nova".to_owned(),
+    }
+}
+
 impl OpenAI {
     pub fn new() -> Self {
         let client: Client<OpenAIConfig> = Client::new();
         OpenAI { client }
     }
 
-    pub async fn assistants(&self) -> Vec<AssistantObject>{
+    pub async fn assistants(&self) -> Vec<AssistantObject> {
         let query = [("limit", "100")];
-        let response = self.client.assistants().list(&query).await.expect("Failed to list assistants");
+        let response = self
+            .client
+            .assistants()
+            .list(&query)
+            .await
+            .expect("Failed to list assistants");
         let mut assistants = response.data;
         while response.has_more {
-            let query = [("limit", "100"), ("after", assistants.last().unwrap().id.as_str())];
-            let response = self.client.assistants().list(&query).await.expect("Failed to list assistants");
+            let query = [
+                ("limit", "100"),
+                ("after", assistants.last().unwrap().id.as_str()),
+            ];
+            let response = self
+                .client
+                .assistants()
+                .list(&query)
+                .await
+                .expect("Failed to list assistants");
             assistants.extend(response.data);
         }
 
         assistants
+    }
+
+    pub async fn set_assistant_image(
+        &self,
+        assistent: &AssistantObject,
+        image: &str,
+    ) -> Result<(), OpenAIError> {
+        let mut meta = assistent.metadata.clone().unwrap_or_default();
+        meta.insert(
+            "avatar".to_string(),
+            serde_json::Value::String(image.to_string()),
+        );
+        self.client
+            .assistants()
+            .update(
+                &assistent.id,
+                ModifyAssistantRequest {
+                    model: assistent.model.clone(),
+                    metadata: Some(meta),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_assistant_tools(
+        &self,
+        assistant: &AssistantObject,
+        tools: Vec<AssistantTools>,
+    ) -> Result<(), OpenAIError> {
+        self.client
+            .assistants()
+            .update(
+                &assistant.id,
+                ModifyAssistantRequest {
+                    model: assistant.model.clone(),
+                    tools: Some(tools),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        Ok(())
     }
 
     pub async fn generate_image(

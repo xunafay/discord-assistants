@@ -42,14 +42,12 @@ impl AlvariumTool for DateTimeTool {
         _args: Self::Arguments,
         _context: &Context,
         tool: &RunToolCallObject,
-    ) -> SubmitToolOutputsRunRequest {
+    ) -> ToolsOutputs {
         let now = chrono::Local::now(); // support time zones in the future
         let day = now.format("%A").to_string();
-        SubmitToolOutputsRunRequest {
-            tool_outputs: vec![ToolsOutputs {
-                tool_call_id: Some(tool.id.clone()),
-                output: Some(json!({ "datetime": now.to_string(), "day": day }).to_string()),
-            }],
+        ToolsOutputs {
+            tool_call_id: Some(tool.id.clone()),
+            output: Some(json!({ "datetime": now.to_string(), "day": day }).to_string()),
         }
     }
 }

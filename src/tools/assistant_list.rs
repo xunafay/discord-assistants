@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use async_openai::types::{
-    AssistantTools, AssistantToolsFunction, ChatCompletionFunctions, SubmitToolOutputsRunRequest,
-    ToolsOutputs,
+    AssistantTools, AssistantToolsFunction, ChatCompletionFunctions, RunToolCallObject,
+    SubmitToolOutputsRunRequest, ToolsOutputs,
 };
 use serde::Serialize;
 use serde_json::json;
@@ -17,13 +17,14 @@ impl AlvariumTool for AssistantListTool {
     type Arguments = ();
     fn definition() -> AssistantTools {
         AssistantTools::Function(AssistantToolsFunction {
-            r#type: "".to_string(),
+            r#type: "function".to_string(),
             function: ChatCompletionFunctions {
                 name: "assistant_list".to_string(),
                 description: Some("List all assistants".to_string()),
                 parameters: json!({
                     "type": "object",
-                    "properties": {}
+                    "properties": {},
+                    "required": []
                 }),
             },
         })
@@ -32,7 +33,7 @@ impl AlvariumTool for AssistantListTool {
     fn name() -> String {
         "assistant_list".to_owned()
     }
-    
+
     fn description() -> String {
         match Self::definition() {
             AssistantTools::Function(AssistantToolsFunction { function, .. }) => {
@@ -45,8 +46,8 @@ impl AlvariumTool for AssistantListTool {
     async fn run(
         _args: Self::Arguments,
         context: &Context,
-        tool: &async_openai::types::RunToolCallObject,
-    ) -> async_openai::types::SubmitToolOutputsRunRequest {
+        tool: &RunToolCallObject,
+    ) -> ToolsOutputs {
         let data_read = context.data.read().await;
         let openai = data_read
             .get::<OpenAI>()
@@ -63,14 +64,11 @@ impl AlvariumTool for AssistantListTool {
             })
             .collect::<Vec<AssistantVm>>();
 
-        SubmitToolOutputsRunRequest {
-            tool_outputs: vec![ToolsOutputs {
-                tool_call_id: Some(tool.id.clone()),
-                output: Some(
-                    serde_json::to_string_pretty(&assistants)
-                        .expect("Failed to serialize assistants"),
-                ),
-            }],
+        ToolsOutputs {
+            tool_call_id: Some(tool.id.clone()),
+            output: Some(
+                serde_json::to_string_pretty(&assistants).expect("Failed to serialize assistants"),
+            ),
         }
     }
 }

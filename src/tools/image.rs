@@ -79,7 +79,7 @@ impl AlvariumTool for ImageTool {
         args: Self::Arguments,
         context: &Context,
         tool: &RunToolCallObject,
-    ) -> SubmitToolOutputsRunRequest {
+    ) -> ToolsOutputs {
         let model = match args.model {
             Some(text) => match text.as_str() {
                 "dall-e-3" => ImageModel::DallE3,
@@ -137,11 +137,9 @@ impl AlvariumTool for ImageTool {
                         .expect("Failed to remove image");
                 }
 
-                SubmitToolOutputsRunRequest {
-                    tool_outputs: vec![ToolsOutputs {
-                        tool_call_id: Some(tool.id.clone()),
-                        output: Some(json!({"urls": image_urls}).to_string()),
-                    }],
+                ToolsOutputs {
+                    tool_call_id: Some(tool.id.clone()),
+                    output: Some(json!({"urls": image_urls}).to_string()),
                 }
             }
             Err(err) => {
@@ -151,11 +149,9 @@ impl AlvariumTool for ImageTool {
                 };
 
                 error!("Failed to generate image, sorry");
-                SubmitToolOutputsRunRequest {
-                    tool_outputs: vec![ToolsOutputs {
-                        tool_call_id: Some(tool.id.clone()),
-                        output: Some(json!({"error": message}).to_string()),
-                    }],
+                ToolsOutputs {
+                    tool_call_id: Some(tool.id.clone()),
+                    output: Some(json!({"error": message}).to_string()),
                 }
             }
         }

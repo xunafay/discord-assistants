@@ -1,5 +1,6 @@
 use async_openai::types::{
-    AssistantTools, RunToolCallObject, SubmitToolOutputsRunRequest, ToolsOutputs, AssistantToolsFunction, ChatCompletionFunctions,
+    AssistantTools, AssistantToolsFunction, ChatCompletionFunctions, RunToolCallObject,
+    SubmitToolOutputsRunRequest, ToolsOutputs,
 };
 use log::debug;
 use serde_json::json;
@@ -48,7 +49,7 @@ impl AlvariumTool for TranscribeTool {
         args: Self::Arguments,
         context: &serenity::prelude::Context,
         tool: &RunToolCallObject,
-    ) -> SubmitToolOutputsRunRequest {
+    ) -> ToolsOutputs {
         let data_read = context.data.read().await;
         let openai = data_read
             .get::<OpenAI>()
@@ -56,11 +57,9 @@ impl AlvariumTool for TranscribeTool {
 
         let transcript = openai.stt(&args.url).expect("Failed to transcribe");
         debug!("Transcript: {}", transcript);
-        SubmitToolOutputsRunRequest {
-            tool_outputs: vec![ToolsOutputs {
-                tool_call_id: Some(tool.id.clone()),
-                output: Some(json!({"transcript": transcript}).to_string()),
-            }],
+        ToolsOutputs {
+            tool_call_id: Some(tool.id.clone()),
+            output: Some(json!({"transcript": transcript}).to_string()),
         }
     }
 }

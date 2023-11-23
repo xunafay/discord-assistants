@@ -1,3 +1,5 @@
+#![feature(variant_count)]
+
 mod bot;
 mod commands;
 mod database;

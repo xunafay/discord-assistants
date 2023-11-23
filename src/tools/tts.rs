@@ -61,7 +61,7 @@ impl AlvariumTool for TtsTool {
         args: Self::Arguments,
         context: &serenity::prelude::Context,
         tool: &RunToolCallObject,
-    ) -> SubmitToolOutputsRunRequest {
+    ) -> ToolsOutputs {
         let voice = match args.voice {
             Some(text) => match text.as_str() {
                 "alloy" => Voice::Alloy,
@@ -105,12 +105,9 @@ impl AlvariumTool for TtsTool {
             .await
             .expect("Failed to upload voice");
 
-        let output = SubmitToolOutputsRunRequest {
-            tool_outputs: vec![ToolsOutputs {
-                tool_call_id: Some(tool.id.clone()),
-                output: Some(json!({"url": url}).to_string()),
-            }],
-        };
-        output
+        ToolsOutputs {
+            tool_call_id: Some(tool.id.clone()),
+            output: Some(json!({"url": url}).to_string()),
+        }
     }
 }

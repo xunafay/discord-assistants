@@ -1,13 +1,14 @@
-use async_openai::types::MessageContent;
+use async_openai::types::{AssistantObject, MessageContent};
 use log::{debug, info};
 use regex::Regex;
 use serenity::all::{Command, Interaction};
 use serenity::async_trait;
-use serenity::builder::{CreateAttachment, CreateMessage, ExecuteWebhook};
+use serenity::builder::{CreateAttachment, CreateMessage, CreateWebhook, ExecuteWebhook};
 use serenity::framework::standard::{
     macros::{command, group},
     CommandResult,
 };
+use serenity::model::channel;
 use serenity::model::webhook::Webhook;
 use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
@@ -15,21 +16,21 @@ use songbird::SerenityInit;
 use std::env;
 use std::sync::Arc;
 
+use crate::database::channels::{get_channel, set_channel, ChannelConfiguration};
 use crate::database::users::{User, UserStore};
-use crate::openai::{Assistant, AssistantStore, OpenAI, ThreadStore};
+use crate::openai::{self, Assistant, OpenAI, ThreadStore};
 use crate::thread::OpenAIThread;
 
 struct Handler;
 
-fn extract_local_files(message: &str) -> Vec<String> {
-    let regex = Regex::new(r"sandbox:(.*\.(?:jpg|jpeg|png|gif|mp3|wav|mp4|avi|mov))").unwrap();
-    regex
-        .captures_iter(message)
-        .map(|capture| format!(".{}", capture[1].to_string()))
-        .collect::<Vec<String>>()
-}
-
-async fn webhook_say(ctx: &Context, webhook: &str, message: &str, files: Vec<&str>) {
+async fn webhook_say(
+    ctx: &Context,
+    webhook: &str,
+    message: &str,
+    files: Vec<&str>,
+    avatar: Option<&str>,
+    username: Option<&str>,
+) {
     let webhook = Webhook::from_url(&ctx.http, webhook)
         .await
         .expect("Failed to get webhook");
@@ -45,6 +46,19 @@ async fn webhook_say(ctx: &Context, webhook: &str, message: &str, files: Vec<&st
     let hook = ExecuteWebhook::new()
         .content(message)
         .add_files(attachments);
+
+    let hook = if let Some(avatar) = avatar {
+        hook.avatar_url(avatar)
+    } else {
+        hook
+    };
+
+    let hook = if let Some(username) = username {
+        hook.username(username)
+    } else {
+        hook
+    };
+
     webhook
         .execute(&ctx.http, false, hook)
         .await
@@ -70,42 +84,54 @@ pub async fn register_user(ctx: &Context, msg: &Message) {
 async fn multi_agent_response(
     msg: &Message,
     ctx: &Context,
-    openai: &OpenAI,
     thread: &OpenAIThread,
-    assistants: &Vec<Assistant>,
+    webhook: &str,
+    assistants: &Vec<AssistantObject>,
 ) {
     for assistant in assistants {
-        if msg
-            .content
-            .to_lowercase()
-            .contains(&assistant.name.to_lowercase())
-        {
-            if msg.author.id.get().to_string() == assistant.author_id {
-                debug!("Ignoring message from self");
+        if msg.content.to_lowercase().contains(
+            &assistant
+                .name
+                .clone()
+                .unwrap_or("assistant".to_string())
+                .to_lowercase(),
+        ) {
+            if msg.author.bot {
+                debug!("Ignoring message from bot");
                 continue;
             }
             let typing = msg.channel_id.start_typing(&ctx.http);
-            let result = thread.run(&openai, &ctx, &assistant.id).await;
+            let result = thread.run(&ctx, &assistant.id).await;
             match result {
                 Ok(result) => {
                     for content in result {
                         match content {
                             MessageContent::Text(text) => {
                                 for message_content in text.text.value.split_to_vector(2000) {
-                                    let files = extract_local_files(&message_content);
-                                    let files: Vec<&str> =
-                                        files.iter().map(|s| s.as_str()).collect();
-                                    debug!("detecte files: {:?}", files);
-                                    webhook_say(&ctx, &assistant.webhook, &message_content, files)
-                                        .await;
+                                    let avatar = if let Some(avatar) = &assistant.metadata {
+                                        avatar.get("avatar").map(|v| v.as_str()).flatten()
+                                    } else {
+                                        None
+                                    };
+                                    webhook_say(
+                                        &ctx,
+                                        &webhook,
+                                        &message_content,
+                                        vec![],
+                                        avatar,
+                                        assistant.name.as_deref(),
+                                    )
+                                    .await;
                                 }
                             }
                             MessageContent::ImageFile(_image) => {
                                 webhook_say(
                                     &ctx,
-                                    &assistant.webhook,
+                                    &webhook,
                                     "IMAGE: Image format not supported yet",
                                     Vec::new(),
+                                    None,
+                                    None,
                                 )
                                 .await;
                             }
@@ -115,9 +141,11 @@ async fn multi_agent_response(
                 Err(err) => {
                     webhook_say(
                         &ctx,
-                        &assistant.webhook,
+                        &webhook,
                         format!("error: {}", err).as_str(),
                         vec![],
+                        None,
+                        None,
                     )
                     .await
                 }
@@ -127,12 +155,10 @@ async fn multi_agent_response(
     }
 }
 
-async fn default_response(msg: &Message, ctx: &Context, openai: &OpenAI, thread: &OpenAIThread) {
+async fn default_response(msg: &Message, ctx: &Context, thread: &OpenAIThread) {
     if msg.content.to_lowercase().contains("lovelace") && msg.author.bot == false {
         let typing = msg.channel_id.start_typing(&ctx.http);
-        let result = thread
-            .run(&openai, &ctx, "asst_P66RVsW92Izpwky1qWDAZMO8")
-            .await;
+        let result = thread.run(&ctx, "asst_P66RVsW92Izpwky1qWDAZMO8").await;
         if let Err(err_msg) = result {
             msg.channel_id
                 .say(&ctx.http, format!("Error: {:?}", err_msg))
@@ -143,20 +169,8 @@ async fn default_response(msg: &Message, ctx: &Context, openai: &OpenAI, thread:
                 match content {
                     MessageContent::Text(text) => {
                         for message_content in text.text.value.split_to_vector(2000) {
-                            let files = extract_local_files(&message_content);
-                            let files: Vec<&str> = files.iter().map(|s| s.as_str()).collect();
-                            debug!("detecte files: {:?}", files);
-                            let mut attachments = vec![];
-                            for file in files {
-                                let attachment = CreateAttachment::path(file)
-                                    .await
-                                    .expect("Failed to create attachment");
-                                attachments.push(attachment);
-                            }
-
                             let message = CreateMessage::new()
-                                .content(message_content)
-                                .add_files(attachments);
+                                .content(message_content);
                             msg.channel_id
                                 .send_message(&ctx.http, message)
                                 .await
@@ -173,6 +187,42 @@ async fn default_response(msg: &Message, ctx: &Context, openai: &OpenAI, thread:
             }
         }
         typing.stop();
+    }
+}
+
+async fn get_or_create_channel_config(msg: &Message, ctx: &Context, store: &mut ThreadStore) -> ChannelConfiguration {
+    let channel_config = get_channel(msg.channel_id.get()).expect("Failed to get channel");
+    if channel_config.is_none() {
+        debug!("Channel not configured");
+        let webhook = msg
+            .channel_id
+            .create_webhook(&ctx.http, CreateWebhook::new("assistants"))
+            .await
+            .expect("Failed to create webhook");
+
+        let thread = OpenAIThread::new().await;
+
+        let config = ChannelConfiguration {
+            active_assistants: vec![],
+            thread: thread.id().to_owned(),
+            webhook: webhook.url().expect("Failed to get webhook url"),
+        };
+        set_channel(msg.channel_id.get(), &config).expect("Failed to set channel");
+
+        store.add_thread(thread);
+        config
+    } else {
+        let channel_config = channel_config.unwrap();
+        if store.get(&channel_config.thread).is_none() {
+            let thread = OpenAIThread::from_existing(&channel_config.thread);
+            store.add_thread(thread);
+        }
+
+        debug!(
+            "Channel configuration found with thread: {}",
+            channel_config.thread.clone()
+        );
+        channel_config
     }
 }
 
@@ -207,32 +257,32 @@ impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         debug!("Received message: {:?}", msg.content);
         let read_lock = ctx.data.read().await;
-        let openai = read_lock
-            .get::<OpenAI>()
-            .expect("Expected OpenAI in TypeMap");
-        let assistants = read_lock
-            .get::<AssistantStore>()
-            .expect("Expected AssistantStore in TypeMap")
-            .read()
-            .await;
         let mut store = read_lock
             .get::<ThreadStore>()
             .expect("Expected ThreadStore in TypeMap")
             .lock()
             .await;
-        let thread = store.thread(&msg.channel_id.get()).await;
+
+        let channel_config = get_or_create_channel_config(&msg, &ctx, &mut store).await;
+        debug!("Channel config: {:?}", channel_config);
+
+        let thread = store
+            .get(&channel_config.thread)
+            .expect("Failed to get thread");
+
+        debug!("Adding message to thread");
         thread
             .add_message(format!("{}: {}", msg.author.id.get(), msg.content.clone()))
             .await;
 
+        let openai = read_lock
+            .get::<OpenAI>()
+            .expect("Expected OpenAI in TypeMap");
+        let assistants = openai.assistants().await;
+
+        debug!("processing message");
         register_user(&ctx, &msg).await;
-        let assistants = assistants.get_channel(&msg.channel_id.get());
-        match assistants {
-            Some(assistants) => {
-                multi_agent_response(&msg, &ctx, &openai, &thread, assistants).await
-            }
-            None => default_response(&msg, &ctx, &openai, &thread).await,
-        }
+        multi_agent_response(&msg, &ctx, &thread, &channel_config.webhook, &assistants).await
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
@@ -326,10 +376,6 @@ impl TypeMapKey for ThreadStore {
     type Value = Arc<Mutex<ThreadStore>>;
 }
 
-impl TypeMapKey for AssistantStore {
-    type Value = Arc<RwLock<AssistantStore>>;
-}
-
 impl TypeMapKey for UserStore {
     type Value = Arc<RwLock<UserStore>>;
 }
@@ -350,9 +396,10 @@ impl Bot {
 
         {
             let mut data = client.data.write().await;
-            data.insert::<OpenAI>(OpenAI::new());
+            let openai = OpenAI::new();
+
+            data.insert::<OpenAI>(openai);
             data.insert::<ThreadStore>(Arc::new(Mutex::new(ThreadStore::new())));
-            data.insert::<AssistantStore>(Arc::new(RwLock::new(AssistantStore::new())));
             data.insert::<UserStore>(Arc::new(RwLock::new(UserStore::new())));
         }
 

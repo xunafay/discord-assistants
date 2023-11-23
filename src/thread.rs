@@ -19,7 +19,7 @@ use crate::{
         ListTaskToolArguments,
     },
     openai::OpenAI,
-    tools::{image::ImageTool, transcribe::TranscribeTool, tts::TtsTool, AlvariumTool},
+    tools::{image::ImageTool, transcribe::TranscribeTool, tts::TtsTool, AlvariumTool, available_tools, Tools, assistant_create::AssistantCreateTool, datetime::DateTimeTool, assistant_list::AssistantListTool},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +77,20 @@ impl OpenAIThread {
         }
     }
 
+    pub fn from_existing(thread_id: &str) -> Self {
+        let client: Client<OpenAIConfig> = Client::new();
+
+        OpenAIThread {
+            thread_id: thread_id.to_owned(),
+            client,
+            default_assistant: "".to_owned(),
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        &self.thread_id
+    }
+
     pub async fn add_message(&self, message: String) {
         debug!("Adding message: {}", message);
         let message = CreateMessageRequestArgs::default()
@@ -95,7 +109,6 @@ impl OpenAIThread {
 
     pub async fn run(
         &self,
-        openai: &OpenAI,
         ctx: &Context,
         assistant: &str,
     ) -> Result<Vec<MessageContent>, String> {
@@ -133,211 +146,60 @@ impl OpenAIThread {
                 RunStatus::RequiresAction => {
                     let required_action =
                         run.required_action.expect("Failed to get required action");
-                    let tool = required_action
-                        .submit_tool_outputs
-                        .tool_calls
-                        .first()
-                        .expect("Failed to get tool call");
 
-                    let args = tool.function.arguments.clone();
-                    debug!("Tool: {:?}", tool.function.name);
-                    match tool.function.name.as_str() {
-                        "user_info" => {
-                            let args = serde_json::from_str::<MentionToolArguments>(&args)
-                                .expect("Failed to deserialize arguments");
+                    let mut outputs: Vec<ToolsOutputs> = vec![];
+                    // TODO should convert to asynchrounously run tools
+                    for tool_request in required_action.submit_tool_outputs.tool_calls {
+                        let args = tool_request.function.arguments.clone();
+                        debug!("Tool: {:?}", tool_request.function.name);
 
-                            let read_data = ctx.data.read().await;
-                            let user_store = read_data
-                                .get::<crate::database::users::UserStore>()
-                                .expect("Expected UserStore in TypeMap");
-                            let user_store = user_store.read().await;
-                            let output = match user_store.get_user(&args.id) {
-                                Some(user) => SubmitToolOutputsRunRequest {
-                                    tool_outputs: vec![ToolsOutputs {
-                                        tool_call_id: Some(tool.id.clone()),
-                                        output: Some(format!("User: {}", user.get_name())),
-                                    }],
-                                },
-                                None => SubmitToolOutputsRunRequest {
-                                    tool_outputs: vec![ToolsOutputs {
-                                        tool_call_id: Some(tool.id.clone()),
-                                        output: Some("User not found".to_string()),
-                                    }],
-                                },
-                            };
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "task_create" => {
-                            let args = serde_json::from_str::<CreateTaskToolArguments>(&args)
-                                .expect("Failed to deserialize arguments");
-                            debug!("args: {:?}", args);
+                        let tools = available_tools();
+                        let tool = tools
+                            .iter()
+                            .find(|tool| tool.name() == tool_request.function.name.as_str())
+                            .expect("Failed to find tool");
 
-                            let output = match create_task(
-                                &args.user_id,
-                                &args.title,
-                                args.description,
-                                args.due_date,
-                                args.estimated_time,
-                            ) {
-                                Ok(_) => SubmitToolOutputsRunRequest {
-                                    tool_outputs: vec![ToolsOutputs {
-                                        tool_call_id: Some(tool.id.clone()),
-                                        output: Some("Task created".to_string()),
-                                    }],
-                                },
-                                Err(err) => SubmitToolOutputsRunRequest {
-                                    tool_outputs: vec![ToolsOutputs {
-                                        tool_call_id: Some(tool.id.clone()),
-                                        output: Some(format!("Failed to create task: {}", err)),
-                                    }],
-                                },
-                            };
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "task_complete" => {
-                            let args = serde_json::from_str::<CompleteTaskToolArgumetens>(&args)
-                                .expect("Failed to deserialize arguments");
-
-                            let output = match complete_task(&args.id) {
-                                Ok(_) => SubmitToolOutputsRunRequest {
-                                    tool_outputs: vec![ToolsOutputs {
-                                        tool_call_id: Some(tool.id.clone()),
-                                        output: Some("Task completed".to_string()),
-                                    }],
-                                },
-                                Err(err) => SubmitToolOutputsRunRequest {
-                                    tool_outputs: vec![ToolsOutputs {
-                                        tool_call_id: Some(tool.id.clone()),
-                                        output: Some(format!("Failed to complete task: {}", err)),
-                                    }],
-                                },
-                            };
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "task_list" => {
-                            let args = serde_json::from_str::<ListTaskToolArguments>(&args)
-                                .expect("Failed to deserialize arguments");
-
-                            debug!("args: {:?}", args);
-
-                            let output = match get_tasks(&args.user_id) {
-                                Ok(tasks) => {
-                                    debug!("tasks: {:?}", tasks);
-
-                                    SubmitToolOutputsRunRequest {
-                                        tool_outputs: vec![ToolsOutputs {
-                                            tool_call_id: Some(tool.id.clone()),
-                                            output: Some(format!(
-                                                "{:?}",
-                                                serde_json::to_string(&tasks)
-                                                    .expect("Failed to convert tasks to value")
-                                            )),
-                                        }],
-                                    }
-                                }
-                                Err(err) => SubmitToolOutputsRunRequest {
-                                    tool_outputs: vec![ToolsOutputs {
-                                        tool_call_id: Some(tool.id.clone()),
-                                        output: Some(format!("Failed to get tasks: {}", err)),
-                                    }],
-                                },
-                            };
-
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "mention" => {
-                            let args = serde_json::from_str::<MentionToolArguments>(&args)
-                                .expect("Failed to deserialize arguments");
-                            let output = SubmitToolOutputsRunRequest {
-                                tool_outputs: vec![ToolsOutputs {
-                                    tool_call_id: Some(tool.id.clone()),
-                                    output: Some(
-                                        serde_json::to_string(&MentionToolResponse {
-                                            mention_format: format!("<@!{}>", args.id),
-                                        })
-                                        .expect("Failed to serialize response"),
-                                    ),
-                                }],
-                            };
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "tts" => {
-                            let args = serde_json::from_str::<TtsToolArguments>(&args)
-                                .expect("Failed to deserialize arguments");
-                            let output = TtsTool::run(args, &ctx, tool).await;
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "transcribe" => {
-                            let args = serde_json::from_str::<TranscribeToolArguments>(&args)
-                                .expect("Failed to deserialize arguments");
-                            let output = TranscribeTool::run(args, &ctx, tool).await;
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "image" => {
-                            let args: ImageToolArguments = serde_json::from_str(&args)
-                                .expect("Failed to deserialize arguments");
-                            let output = ImageTool::run(args, ctx, tool).await;
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "current_date_time" => {
-                            let output = SubmitToolOutputsRunRequest {
-                                tool_outputs: vec![ToolsOutputs {
-                                    tool_call_id: Some(tool.id.clone()),
-                                    output: Some(chrono::Local::now().to_string()),
-                                }],
-                            };
-                            self.reply_tool_output(&run.id, output).await;
-                        }
-                        "web_to_text" => {
-                            let args: TranscribeToolArguments = serde_json::from_str(&args)
-                                .expect("Failed to deserialize arguments");
-                            let client = reqwest::Client::new();
-                            let request = client
-                                .get(args.url)
-                                .header(reqwest::header::USER_AGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
-                                .header(reqwest::header::DNT, 1)
-                                .build()
-                                .expect("Failed to build request");
-                            let response = client.execute(request).await;
-                            match response {
-                                Ok(response) => {
-                                    let html = response.text().await.expect("Failed to get text");
-                                    let text_cursor = Cursor::new(html);
-                                    let text = html2text::from_read(text_cursor, 9999);
-                                    debug!("url: {:?}", text);
-                                    let output = SubmitToolOutputsRunRequest {
-                                        tool_outputs: vec![ToolsOutputs {
-                                            tool_call_id: Some(tool.id.clone()),
-                                            output: Some(text),
-                                        }],
-                                    };
-                                    self.reply_tool_output(&run.id, output).await;
-                                }
-                                Err(err) => {
-                                    let output = SubmitToolOutputsRunRequest {
-                                        tool_outputs: vec![ToolsOutputs {
-                                            tool_call_id: Some(tool.id.clone()),
-                                            output: Some(format!("Failed to get url: {:?}", err)),
-                                        }],
-                                    };
-                                    self.reply_tool_output(&run.id, output).await;
-                                }
-                            }
-                        }
-                        _ => {
-                            let output = SubmitToolOutputsRunRequest {
-                                tool_outputs: vec![ToolsOutputs {
-                                    tool_call_id: Some(tool.id.clone()),
-                                    output: Some(
-                                        json!({"error": "tool not implemented or enabled"})
-                                            .to_string(),
-                                    ),
-                                }],
-                            };
-
-                            self.reply_tool_output(&run.id, output).await;
+                        match tool {
+                            Tools::AssistantCreate => {
+                                let output = AssistantCreateTool::run((), ctx, &tool_request).await;
+                                outputs.push(output);
+                            },
+                            Tools::AssistantList => {
+                                let output = AssistantListTool::run((), ctx, &tool_request).await;
+                                outputs.push(output);
+                            },
+                            Tools::DateTime => {
+                                let output = DateTimeTool::run((), ctx, &tool_request).await;
+                                outputs.push(output);
+                            },
+                            Tools::Tts => {
+                                let args = serde_json::from_str::<TtsToolArguments>(&args)
+                                    .expect("Failed to deserialize arguments");
+                                let output = TtsTool::run(args, ctx, &tool_request).await;
+                                outputs.push(output);
+                            },
+                            Tools::Transcribe => {
+                                let args = serde_json::from_str::<TranscribeToolArguments>(&args)
+                                    .expect("Failed to deserialize arguments");
+                                let output = TranscribeTool::run(args, ctx, &tool_request).await;
+                                outputs.push(output);
+                            },
+                            Tools::Image => {
+                                let args = serde_json::from_str::<ImageToolArguments>(&args)
+                                    .expect("Failed to deserialize arguments");
+                                let output = ImageTool::run(args, ctx, &tool_request).await;
+                                outputs.push(output);
+                            },
                         }
                     }
+                    
+                    self.reply_tool_output(
+                        &run.id,
+                        SubmitToolOutputsRunRequest {
+                            tool_outputs: outputs,
+                        },
+                    )
+                    .await;
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;

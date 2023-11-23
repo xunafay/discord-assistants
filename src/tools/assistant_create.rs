@@ -1,6 +1,6 @@
 use async_openai::types::{
     AssistantTools, AssistantToolsFunction, ChatCompletionFunctions, RunToolCallObject,
-    SubmitToolOutputsRunRequest, ToolsOutputs,
+    ToolsOutputs,
 };
 use serde_json::json;
 use serenity::client::Context;
@@ -58,12 +58,10 @@ impl AlvariumTool for AssistantCreateTool {
         _args: Self::Arguments,
         _context: &Context,
         tool: &RunToolCallObject,
-    ) -> SubmitToolOutputsRunRequest {
-        SubmitToolOutputsRunRequest {
-            tool_outputs: vec![ToolsOutputs {
-                tool_call_id: Some(tool.id.clone()),
-                output: Some(json!({"error": "Tool not implemented"}).to_string()),
-            }],
+    ) -> ToolsOutputs {
+        ToolsOutputs {
+            tool_call_id: Some(tool.id.clone()),
+            output: Some(json!({"error": "Tool not implemented"}).to_string()),
         }
     }
 }

@@ -1,4 +1,4 @@
-use async_openai::types::{AssistantTools, RunToolCallObject, SubmitToolOutputsRunRequest};
+use async_openai::types::{AssistantTools, RunToolCallObject, SubmitToolOutputsRunRequest, ToolsOutputs};
 use serenity::client::Context;
 
 use crate::tools::image::ImageTool;
@@ -93,7 +93,7 @@ pub trait AlvariumTool {
         args: Self::Arguments,
         context: &Context,
         tool: &RunToolCallObject,
-    ) -> SubmitToolOutputsRunRequest;
+    ) -> ToolsOutputs;
 }
 
 #[cfg(test)]
