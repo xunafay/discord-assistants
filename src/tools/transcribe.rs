@@ -35,6 +35,15 @@ impl AlvariumTool for TranscribeTool {
         })
     }
 
+    fn description() -> String {
+        match Self::definition() {
+            AssistantTools::Function(AssistantToolsFunction { function, .. }) => {
+                function.description.unwrap_or_default()
+            }
+            _ => "".to_owned(),
+        }
+    }
+
     async fn run(
         args: Self::Arguments,
         context: &serenity::prelude::Context,

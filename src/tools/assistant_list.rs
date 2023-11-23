@@ -32,6 +32,15 @@ impl AlvariumTool for AssistantListTool {
     fn name() -> String {
         "assistant_list".to_owned()
     }
+    
+    fn description() -> String {
+        match Self::definition() {
+            AssistantTools::Function(AssistantToolsFunction { function, .. }) => {
+                function.description.unwrap_or_default()
+            }
+            _ => "".to_owned(),
+        }
+    }
 
     async fn run(
         _args: Self::Arguments,
