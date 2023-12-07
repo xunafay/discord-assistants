@@ -18,7 +18,7 @@ pub struct ListTaskToolArguments {
 }
 
 pub fn get_tasks(user_id: &str) -> Result<Vec<(String, Task)>, String> {
-    let db = match open("./db/tasks") {
+    let db = match open("/db/tasks") {
         Ok(db) => db,
         Err(err) => {
             return Err(format!("Failed to open sled database: {}", err));
@@ -64,7 +64,7 @@ pub fn create_task(
     due_date: Option<String>,
     estimated_time: Option<String>,
 ) -> Result<(), String> {
-    let db: Db = match open("./db/tasks") {
+    let db: Db = match open("/db/tasks") {
         Ok(db) => db,
         Err(err) => {
             return Err(format!("Failed to open sled database: {}", err));
@@ -100,7 +100,7 @@ pub struct CompleteTaskToolArgumetens {
 }
 
 pub fn complete_task(id: &str) -> Result<(), String> {
-    let db: Db = match open("./db/tasks") {
+    let db: Db = match open("/db/tasks") {
         Ok(db) => db,
         Err(err) => {
             return Err(format!("Failed to open sled database: {}", err));

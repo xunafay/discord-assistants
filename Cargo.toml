@@ -6,8 +6,20 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-serenity = { version = "0.12.0-rc", features = ["builder", "cache", "rustls_backend", "collector", "client", "framework", "gateway", "http", "model", "standard_framework", "utils"] }
-async-openai = { git = "https://github.com/katya4oyu/async-openai.git", branch = "sendable_post_form"}
+serenity = { version = "0.12.0-rc", features = [
+	"builder",
+	"cache",
+	"rustls_backend",
+	"collector",
+	"client",
+	"framework",
+	"gateway",
+	"http",
+	"model",
+	"standard_framework",
+	"utils",
+] }
+async-openai = { git = "https://github.com/katya4oyu/async-openai.git", branch = "sendable_post_form" }
 dotenv = "0.15.0"
 serde = { version = "1.0", features = ["derive"] }
 songbird = { version = "0.4.0-rc" }
@@ -23,6 +35,9 @@ reqwest = { version = "0.11.22", features = ["blocking"] }
 sled = "0.34.7"
 serenity-voice-model = "0.1.1"
 base64 = "0.21.5"
-minio = { git = "https://github.com/interval-org/minio-rs.git", ref = "28794ece06254c52bf8a5527feaece8f6589ddbd"}
+minio = { git = "https://github.com/interval-org/minio-rs.git", ref = "28794ece06254c52bf8a5527feaece8f6589ddbd" }
 typemap_rev = "0.3.0"
 async-trait = "0.1.74"
+
+[toolchain]
+channel = "nightly"

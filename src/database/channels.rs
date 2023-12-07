@@ -1,5 +1,5 @@
-use serde::{Serialize, Deserialize};
-use sled::{Db, open, IVec};
+use serde::{Deserialize, Serialize};
+use sled::{open, Db, IVec};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ChannelConfiguration {
@@ -9,7 +9,7 @@ pub struct ChannelConfiguration {
 }
 
 pub fn get_channel(channel: u64) -> Result<Option<ChannelConfiguration>, String> {
-    let db: Db = match open("./db/channels") {
+    let db: Db = match open("/db/channels") {
         Ok(db) => db,
         Err(err) => {
             return Err(format!("Failed to open sled database: {}", err));
@@ -38,7 +38,7 @@ pub fn get_channel(channel: u64) -> Result<Option<ChannelConfiguration>, String>
 }
 
 pub fn set_channel(channel: u64, configuration: &ChannelConfiguration) -> Result<(), String> {
-    let db: Db = match open("./db/channels") {
+    let db: Db = match open("/db/channels") {
         Ok(db) => db,
         Err(err) => {
             return Err(format!("Failed to open sled database: {}", err));
@@ -58,3 +58,4 @@ pub fn set_channel(channel: u64, configuration: &ChannelConfiguration) -> Result
         }
     }
 }
+
