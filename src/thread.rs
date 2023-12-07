@@ -47,7 +47,6 @@ pub struct TtsToolArguments {
 pub struct OpenAIThread {
     thread_id: String,
     client: Client<OpenAIConfig>,
-    default_assistant: String,
 }
 
 impl OpenAIThread {
@@ -66,7 +65,6 @@ impl OpenAIThread {
         OpenAIThread {
             thread_id: thread.id,
             client,
-            default_assistant: "asst_12pff2aZ3RLAVAPpAnusFgwV".to_owned(),
         }
     }
 
@@ -76,7 +74,6 @@ impl OpenAIThread {
         OpenAIThread {
             thread_id: thread_id.to_owned(),
             client,
-            default_assistant: "".to_owned(),
         }
     }
 
