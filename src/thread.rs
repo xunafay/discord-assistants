@@ -1,5 +1,3 @@
-use std::io::Cursor;
-
 use async_openai::{
     config::OpenAIConfig,
     types::{
@@ -10,16 +8,11 @@ use async_openai::{
 };
 use log::debug;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use serenity::client::Context;
 
-use crate::{
-    database::tasks::{
-        complete_task, create_task, get_tasks, CompleteTaskToolArgumetens, CreateTaskToolArguments,
-        ListTaskToolArguments,
-    },
-    openai::OpenAI,
-    tools::{image::ImageTool, transcribe::TranscribeTool, tts::TtsTool, AlvariumTool, available_tools, Tools, assistant_create::AssistantCreateTool, datetime::DateTimeTool, assistant_list::AssistantListTool},
+use crate::tools::{
+    assistant_list::AssistantListTool, available_tools, datetime::DateTimeTool, image::ImageTool,
+    transcribe::TranscribeTool, tts::TtsTool, AlvariumTool, Tools,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,11 +100,7 @@ impl OpenAIThread {
             .expect("Failed to create message");
     }
 
-    pub async fn run(
-        &self,
-        ctx: &Context,
-        assistant: &str,
-    ) -> Result<Vec<MessageContent>, String> {
+    pub async fn run(&self, ctx: &Context, assistant: &str) -> Result<Vec<MessageContent>, String> {
         debug!("Running thread {}", self.thread_id);
         let run_request = CreateRunRequestArgs::default()
             .assistant_id(assistant)
@@ -160,39 +149,35 @@ impl OpenAIThread {
                             .expect("Failed to find tool");
 
                         match tool {
-                            Tools::AssistantCreate => {
-                                let output = AssistantCreateTool::run((), ctx, &tool_request).await;
-                                outputs.push(output);
-                            },
                             Tools::AssistantList => {
                                 let output = AssistantListTool::run((), ctx, &tool_request).await;
                                 outputs.push(output);
-                            },
+                            }
                             Tools::DateTime => {
                                 let output = DateTimeTool::run((), ctx, &tool_request).await;
                                 outputs.push(output);
-                            },
+                            }
                             Tools::Tts => {
                                 let args = serde_json::from_str::<TtsToolArguments>(&args)
                                     .expect("Failed to deserialize arguments");
                                 let output = TtsTool::run(args, ctx, &tool_request).await;
                                 outputs.push(output);
-                            },
+                            }
                             Tools::Transcribe => {
                                 let args = serde_json::from_str::<TranscribeToolArguments>(&args)
                                     .expect("Failed to deserialize arguments");
                                 let output = TranscribeTool::run(args, ctx, &tool_request).await;
                                 outputs.push(output);
-                            },
+                            }
                             Tools::Image => {
                                 let args = serde_json::from_str::<ImageToolArguments>(&args)
                                     .expect("Failed to deserialize arguments");
                                 let output = ImageTool::run(args, ctx, &tool_request).await;
                                 outputs.push(output);
-                            },
+                            }
                         }
                     }
-                    
+
                     self.reply_tool_output(
                         &run.id,
                         SubmitToolOutputsRunRequest {

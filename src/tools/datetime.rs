@@ -1,6 +1,6 @@
 use async_openai::types::{
     AssistantTools, AssistantToolsFunction, ChatCompletionFunctions, RunToolCallObject,
-    SubmitToolOutputsRunRequest, ToolsOutputs,
+    ToolsOutputs,
 };
 use serde_json::json;
 use serenity::client::Context;

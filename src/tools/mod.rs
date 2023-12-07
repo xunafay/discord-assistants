@@ -4,19 +4,17 @@ use serenity::client::Context;
 use crate::tools::image::ImageTool;
 
 use self::{
-    assistant_create::AssistantCreateTool, assistant_list::AssistantListTool,
+    assistant_list::AssistantListTool,
     transcribe::TranscribeTool, tts::TtsTool, datetime::DateTimeTool,
 };
 
-pub mod assistant_create;
 pub mod assistant_list;
 pub mod image;
 pub mod transcribe;
 pub mod tts;
 pub mod datetime;
-
+pub mod web_scrape;
 pub enum Tools {
-    AssistantCreate,
     AssistantList,
     Image,
     Transcribe,
@@ -27,7 +25,6 @@ pub enum Tools {
 impl Tools {
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
-            "assistant_create" => Some(Tools::AssistantCreate),
             "assistant_list" => Some(Tools::AssistantList),
             "image" => Some(Tools::Image),
             "transcribe" => Some(Tools::Transcribe),
@@ -39,7 +36,6 @@ impl Tools {
 
     pub fn name(&self) -> String {
         match self {
-            Tools::AssistantCreate => AssistantCreateTool::name(),
             Tools::AssistantList => AssistantListTool::name(),
             Tools::Image => ImageTool::name(),
             Tools::Transcribe => TranscribeTool::name(),
@@ -50,7 +46,6 @@ impl Tools {
 
     pub fn definition(&self) -> AssistantTools {
         match self {
-            Tools::AssistantCreate => AssistantCreateTool::definition(),
             Tools::AssistantList => AssistantListTool::definition(),
             Tools::Image => ImageTool::definition(),
             Tools::Transcribe => TranscribeTool::definition(),
@@ -61,7 +56,6 @@ impl Tools {
 
     pub fn description(&self) -> String {
         match self {
-            Tools::AssistantCreate => AssistantCreateTool::description(),
             Tools::AssistantList => AssistantListTool::description(),
             Tools::Image => ImageTool::description(),
             Tools::Transcribe => TranscribeTool::description(),
@@ -74,7 +68,6 @@ impl Tools {
 
 pub fn available_tools() -> Vec<Tools> {
     vec![
-        Tools::AssistantCreate,
         Tools::AssistantList,
         Tools::Image,
         Tools::Transcribe,

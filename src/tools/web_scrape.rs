@@ -7,38 +7,35 @@ use serenity::client::Context;
 
 use super::AlvariumTool;
 
-pub struct AssistantCreateTool;
-impl AlvariumTool for AssistantCreateTool {
+pub struct WebScrapeTool;
+
+impl AlvariumTool for WebScrapeTool {
     type Arguments = ();
+
     fn definition() -> AssistantTools {
         AssistantTools::Function(AssistantToolsFunction {
             r#type: "function".to_string(),
             function: ChatCompletionFunctions {
-                name: "assistant_create".to_string(),
-                description: Some("Create a new assistant".to_string()),
+                name: "web_scrape".to_string(),
+                description: Some(
+                    "Scrape a web page and get its content in plain text".to_string(),
+                ),
                 parameters: json!({
                     "type": "object",
                     "properties": {
-                        "name": {
+                        "url": {
                             "type": "string",
-                            "description": "The name of the assistant"
-                        },
-                        "model": {
-                            "type": "string",
-                            "enum": [
-                                "gpt-3.5-turbo-1106",
-                                "gpt-4-1106-preview"
-                            ],
-                            "description": "The model to use for the assistant"
-                        },
-                        "instructions": {
-                            "type": "string",
-                            "description": "The instructions for the assistant"
+                            "description": "The URL of the web page to scrape"
                         }
                     },
+                    "required": ["url"]
                 }),
             },
         })
+    }
+
+    fn name() -> String {
+        "web_scrape".to_owned()
     }
 
     fn description() -> String {
@@ -48,10 +45,6 @@ impl AlvariumTool for AssistantCreateTool {
             }
             _ => "".to_owned(),
         }
-    }
-
-    fn name() -> String {
-        "assistant_create".to_owned()
     }
 
     async fn run(

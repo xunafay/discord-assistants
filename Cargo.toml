@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 serenity = { version = "0.12.0-rc", features = ["builder", "cache", "rustls_backend", "collector", "client", "framework", "gateway", "http", "model", "standard_framework", "utils"] }
-async-openai = "0.16.0"
+async-openai = { git = "https://github.com/katya4oyu/async-openai.git", branch = "sendable_post_form"}
 dotenv = "0.15.0"
 serde = { version = "1.0", features = ["derive"] }
 songbird = { version = "0.4.0-rc" }
