@@ -16,7 +16,7 @@ WORKDIR /app
 # Install build dependencies
 RUN rustup default nightly
 RUN apt update
-RUN apt install -y libssl-dev pkg-config cmake
+RUN apt install -y libssl-dev pkg-config cmake libssl-dev
 
 # Build the application.
 # Leverage a cache mount to /usr/local/cargo/registry/
