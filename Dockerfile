@@ -16,7 +16,7 @@ WORKDIR /app
 # Install build dependencies
 RUN rustup default nightly
 RUN apt update
-RUN apt install -y libssl-dev pkg-config cmake libssl-dev
+RUN apt install -y libssl-dev pkg-config cmake
 
 # Build the application.
 # Leverage a cache mount to /usr/local/cargo/registry/
@@ -61,6 +61,7 @@ RUN adduser \
 	--uid "${UID}" \
 	appuser
 
+RUN apt install -y libssl-dev
 RUN mkdir /db
 RUN chown appuser /db
 USER appuser
