@@ -1,11 +1,27 @@
 use serde::{Deserialize, Serialize};
 use sled::{open, Db, IVec};
 
+use crate::thread::OpenAIThread;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ChannelConfiguration {
     pub active_assistants: Vec<String>,
     pub thread: String,
     pub webhook: String,
+}
+
+pub async fn reset_channel_thread(channel_id: u64) -> Result<(), String> {
+    let channel = get_channel(channel_id.clone())
+        .expect("Failed to fetch channel")
+        .expect("Failed to fetch channel");
+    let thread = OpenAIThread::new().await;
+    let channel_configuration = ChannelConfiguration {
+        thread: thread.id().to_string(),
+        webhook: channel.webhook,
+        active_assistants: channel.active_assistants,
+    };
+    set_channel(channel_id, &channel_configuration).expect("Failed to update channel");
+    Ok(())
 }
 
 pub fn get_channel(channel: u64) -> Result<Option<ChannelConfiguration>, String> {
@@ -58,4 +74,3 @@ pub fn set_channel(channel: u64, configuration: &ChannelConfiguration) -> Result
         }
     }
 }
-

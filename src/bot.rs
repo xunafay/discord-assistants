@@ -8,7 +8,6 @@ use serenity::framework::standard::{
     macros::{command, group},
     CommandResult,
 };
-use serenity::model::channel;
 use serenity::model::webhook::Webhook;
 use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
@@ -18,7 +17,7 @@ use std::sync::Arc;
 
 use crate::database::channels::{get_channel, set_channel, ChannelConfiguration};
 use crate::database::users::{User, UserStore};
-use crate::openai::{self, Assistant, OpenAI, ThreadStore};
+use crate::openai::{OpenAI, ThreadStore};
 use crate::thread::OpenAIThread;
 
 struct Handler;
@@ -169,8 +168,7 @@ async fn default_response(msg: &Message, ctx: &Context, thread: &OpenAIThread) {
                 match content {
                     MessageContent::Text(text) => {
                         for message_content in text.text.value.split_to_vector(2000) {
-                            let message = CreateMessage::new()
-                                .content(message_content);
+                            let message = CreateMessage::new().content(message_content);
                             msg.channel_id
                                 .send_message(&ctx.http, message)
                                 .await
@@ -190,7 +188,11 @@ async fn default_response(msg: &Message, ctx: &Context, thread: &OpenAIThread) {
     }
 }
 
-async fn get_or_create_channel_config(msg: &Message, ctx: &Context, store: &mut ThreadStore) -> ChannelConfiguration {
+async fn get_or_create_channel_config(
+    msg: &Message,
+    ctx: &Context,
+    store: &mut ThreadStore,
+) -> ChannelConfiguration {
     let channel_config = get_channel(msg.channel_id.get()).expect("Failed to get channel");
     if channel_config.is_none() {
         debug!("Channel not configured");
@@ -250,6 +252,10 @@ impl EventHandler for Handler {
 
             if command.data.name.as_str() == "assistant" {
                 crate::commands::assistant::run(&ctx, &command).await;
+            };
+
+            if command.data.name.as_str() == "reset" {
+                crate::commands::reset::run(&ctx, &command).await;
             };
         }
     }
@@ -321,6 +327,10 @@ async fn recreate_commands(ctx: &Context) {
         .expect("Failed to create global command");
 
     Command::create_global_command(&ctx.http, crate::commands::assistant::register())
+        .await
+        .expect("Failed to create global command");
+
+    Command::create_global_command(&ctx.http, crate::commands::reset::register())
         .await
         .expect("Failed to create global command");
 }
