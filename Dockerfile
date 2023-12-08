@@ -61,6 +61,7 @@ RUN adduser \
 	--uid "${UID}" \
 	appuser
 
+RUN apt update
 RUN apt install -y libssl-dev
 RUN mkdir /db
 RUN chown appuser /db
